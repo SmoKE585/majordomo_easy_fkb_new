@@ -1,0 +1,242 @@
+<nav class="navbar navbar-default">
+	<div class="container-fluid">
+	  <div class="navbar-header">
+		<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+		  <span class="sr-only">Toggle navigation</span>
+		  <span class="icon-bar"></span>
+		  <span class="icon-bar"></span>
+		  <span class="icon-bar"></span>
+		</button>
+		[#if TABLET_NAME!=""#]
+			<a class="navbar-brand" href="?">[#TABLET_NAME#] (v. [#VERSION_APP#])</a>
+		[#else#]
+			<a class="navbar-brand" href="?">Easy FKB</a>
+		[#endif#]
+	  </div>
+	  <div id="navbar" class="navbar-collapse collapse">
+		<ul class="nav navbar-nav">
+			[#if CYCLE_STATUS=="start"#]
+				<li class="active"><a href="#" target="_blank" style="color: green;font-weight: bold;"><i class="las la-sync-alt" style="font-size: 1.9rem;vertical-align: top;"></i> Цикл запущен</a></li>
+			[#else#]
+				<li class="active"><a href="#" target="_blank" style="color: red;font-weight: bold;"><i class="las la-sync-alt" style="font-size: 1.9rem;vertical-align: top;"></i> Цикл остановлен</a></li>
+			[#endif CYCLE_STATUS#]
+			<li><a href="https://yadi.sk/d/eHR18ygb1NR-oQ" target="_blank"><i class="las la-download" style="font-size: 1.9rem;vertical-align: top;"></i> Скачать FKB</a></li>
+			<li><a href="https://mjdm.ru/forum/viewtopic.php?f=5&t=6960" target="_blank"><i class="las la-comment-dots" style="font-size: 1.9rem;vertical-align: top;"></i> Обсуждение на форуме</a></li>
+			
+		</ul>
+		<ul class="nav navbar-nav navbar-right">
+			[#if SETTINGS_BLOCK==0#]
+				<li><a href="?view_mode=settings"><i class="las la-cog" style="font-size: 1.9rem;vertical-align: top;"></i> Показать настройки</a></li>
+			[#else#]
+				<li><a href="?view_mode=settings"><i class="las la-cog" style="font-size: 1.9rem;vertical-align: top;"></i> Скрыть настройки</a></li>
+			[#endif SETTINGS_BLOCK#]
+		</ul>
+	  </div><!--/.nav-collapse -->
+	</div><!--/.container-fluid -->
+</nav>
+[#if ERROR==1#]
+	[#if SETTINGS_BLOCK==1#]
+		<div class="alert alert-danger" role="alert" style="text-align: center"><i class="las la-exclamation-circle" style="font-size: 2.5rem;vertical-align: sub;"></i> Ошибка получения данных! Проверьте IP адресс и пароль!</div>
+		[#else#]
+		<div class="alert alert-info" role="alert" style="text-align: center"><i class="las la-exclamation-circle" style="font-size: 2.5rem;vertical-align: sub;"></i> Модуль в разработе! Доступен не весь функционал!</div>
+	[#endif SETTINGS_BLOCK#]
+[#endif ERROR#]
+
+[#if SETTINGS_BLOCK==1#]
+<div class="row">
+	<div class="col-md-6 col-md-offset-3" style="border: 1px solid gray;border-radius: 10px;padding: 15px;background: whitesmoke;">
+		<h3 style="border-bottom: 1px solid #e7e7e7;padding-bottom: 10px;"><i class="las la-tools"></i> Настройка модуля</h3>
+		<form action="?" method="post" enctype="multipart/form-data" name="frmEdit">
+			<div class="row">
+				<div class="col-xl-6 col-lg-6 col-md-6 col-sm-6 col-6">
+					<div class="form-group">
+						<label for="ipaddress">IP адресс планшета (IP:PORT)</label>
+						<input type="text" class="form-control" name="ipaddress" placeholder="Укажите IP:PORT вашего планшета" value="[#IP#]" autofocus>
+					</div>
+				</div>
+				<div class="col-xl-6 col-lg-6 col-md-6 col-sm-6 col-6">
+					<div class="form-group">
+						<label for="adminpass">Пароль администратора</label>
+						<input type="number" class="form-control" name="adminpass" placeholder="Укажите пароль доступа к REST API" value="[#PASSWORD#]">
+					</div>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-xl-6 col-lg-6 col-md-6 col-sm-6 col-6">
+					<div class="form-group" style="text-align: center;">
+						<label for="ipaddress">Время автообновления (В секундах)</label>
+						<center><input type="number" class="form-control" name="timeAutoReload" placeholder="" value="[#if TIME_AUTO_RELOAD==""#]60[#else#][#TIME_AUTO_RELOAD#][#endif TIME_AUTO_RELOAD#]" style="width: 100px;text-align: center;"></center>
+						
+					</div>
+				</div>
+				<div class="col-xl-6 col-lg-6 col-md-6 col-sm-6 col-6">
+					<div class="form-group" style="text-align: center;">
+						<label for="ipaddress">Расширенное логирование</label>
+						<label><input type="checkbox" name="logsEnabled" style="margin-right: 5px;vertical-align: top;" [#if LOGS_ENABLED=="on"#]checked[#endif#]>Включить логирование</label>
+					</div>
+				</div>
+			</div>
+			<div class="row">
+				<div class="col-md-4 col-md-offset-4" style="padding: 0px;text-align: right;"><button type="submit" name="subm" value="Submit" class="btn btn-success"><i class="las la-save"></i> Проверить и сохранить</button></div>
+			</div>
+			<input type="hidden" name="view_mode" value="save_settings">
+		</form>
+	</div>
+</div>
+<hr>
+[#endif SHOW_SETTINGS#]
+
+[#if ERROR==0#]
+	<div class="row">
+		<div class="col-xl-4 col-lg-4 col-md-4 col-sm-12 col-12" style="padding-left: 0px;padding-right: 5px;">
+			<div style="border-top: 1px solid #e7e7e7;padding: 15px;border-left: 1px solid #e7e7e7;border-right: 1px solid #e7e7e7;border-top-left-radius: 10px;border-top-right-radius: 10px;">
+				<script>
+				function loadScreensaver() {
+					$('#imgScreenTab').attr('src', 'http://[#IP#]/?cmd=getScreenshot&password=[#PASSWORD#]');
+					$('#loadScreenDIV').hide();
+					$('#imgCamShot').hide();
+					$('#imgScreenTab').show();
+				}
+				function loadCamshot() {
+					$('#imgCamShot').attr('src', 'http://[#IP#]/?cmd=getCamshot&password=[#PASSWORD#]');
+					$('#loadScreenDIV').hide();
+					$('#imgScreenTab').hide();
+					$('#imgCamShot').show();
+				}
+				</script>
+				<img src="" id="imgScreenTab" style="width: 100%; display:none;border-radius: 10px;">
+				[#if MOTION_DETECTED=="Активирован"#]<img src="" id="imgCamShot" style="width: 100%; display:none;border-radius: 10px;">[#endif#]
+				<div style="text-align: center;padding-top: 100px;padding-bottom: 100px;border: 1px solid #ddd;border-radius: 10px;background-image: url(/templates/easy_fkb/img/waitScreen.jpg);background-size: cover;background-repeat: no-repeat;background-position: center center;" id="loadScreenDIV">
+					<button type="button" class="btn btn-info" onclick="loadScreensaver();"><i class="las la-arrow-alt-circle-down"></i> Загрузить скрин экрана</button>
+					[#if MOTION_DETECTED=="Активирован"#]<br><br><button type="button" class="btn btn-info" onclick="loadCamshot();"><i class="las la-camera-retro"></i> Загрузить камшот</button>[#endif#]
+				</div>
+			</div>
+			<ul class="list-group">
+				<li class="list-group-item" style="border-top-right-radius: 0px;border-top-left-radius: 0px;">
+					<span class="badge">[#TABLET_NAME#]</span>
+					Название устройства:
+				</li>
+				<li class="list-group-item">
+					<span class="badge" style="[#if WIFI_SIGNAL!="Подключен"#]background-color: #ff5722;[#else#]background-color: #4caf50;[#endif#]">[#WIFI_SIGNAL#]</span>
+					Статус подключения к WiFi:
+				</li>
+				<li class="list-group-item">
+					<span class="badge">[#WIFI_SSID#]</span>
+					Имя сети WiFi:
+				</li>
+				<li class="list-group-item">
+					<form action="?" method="post" enctype="multipart/form-data" id="toggle_screenForm">
+						<input type="hidden" name="view_mode" value="toggle_screen"> 
+					</form>
+					<span class="badge" onclick="document.getElementById('toggle_screenForm').submit();" style="cursor: pointer;[#if STATUS_DISPLAY!="Включен"#]background-color: #999;[#else#]background-color: #4caf50;[#endif#]">
+						<i class="las la-exchange-alt"></i> [#STATUS_DISPLAY#]
+					</span>
+					Состояние экрана:
+				</li>
+				<li class="list-group-item">
+					<span class="badge" style="[#if STATUS_KIOSK!="Активирован"#]background-color: #ff5722;[#else#]background-color: #4caf50;[#endif#]">[#STATUS_KIOSK#]</span>
+					Режим "Киоск":
+				</li>
+				<li class="list-group-item">
+					<span class="badge" style="[#if STATUS_CHARGE!="От сети"#]background-color: #ff5722;[#else#]background-color: #4caf50;[#endif#]">[#STATUS_CHARGE#]</span>
+					Питание:
+				</li>
+				<li class="list-group-item">
+					<span class="badge" style="[#if STATUS_DEVICE_ADMIN!="Активирован"#]background-color: #ff5722;[#else#]background-color: #4caf50;[#endif#]">[#STATUS_DEVICE_ADMIN#]</span>
+					Режим администратора:
+				</li>
+				<li class="list-group-item">
+					<span class="badge" style="[#if MOTION_DETECTED!="Активирован"#]background-color: #ff5722;[#else#]background-color: #4caf50;[#endif#]">[#MOTION_DETECTED#]</span>
+					Motion Detected:
+				</li>
+				<li class="list-group-item">
+					<span class="badge">[#BATTARY_LEVEL#]%</span>
+					Заряд аккумулятора:
+				</li>
+				<li class="list-group-item">
+					<span class="badge">[#SCREEN_BRIGH#] едениц из 300</span>
+					Яркость экрана:
+				</li>
+				<li class="list-group-item">
+					<span class="badge">[#START_URL#]</span>
+					Домашняя страница:
+				</li>
+				<li class="list-group-item">
+					<span class="badge">[#CURRENT_URL#]</span>
+					Текущая страница:
+				</li>
+				<li class="list-group-item" style="border-bottom-right-radius: 10px;border-bottom-left-radius: 10px;">
+					<span class="badge">[#LAST_DATA_UPDATE#]</span>
+					Обновлено:
+				</li>
+			</ul>
+		</div>
+		<div class="col-xl-8 col-lg-8 col-md-8 col-sm-12 col-12" style="padding-left: 5px;padding-right: 0px;">
+			<div style="border-top: 1px solid #e7e7e7;padding: 15px;border: 1px solid #e7e7e7;border-radius: 10px;">
+				<div class="alert alert-success" role="alert" style="text-align: center;background-color: white;">
+					Обратите внимание! Значком <i class="las la-book-open" style="font-size: 2.5rem;vertical-align: sub;"></i> помечаны свойства, которые доступны только для чтения и не подлежат отправке на устройство. При этом, значок
+					<i class="las la-sync" style="font-size: 2.5rem;vertical-align: sub;"></i> указывает на то, что изменив свойство - оно будет отправлено на устройство.
+				</div>
+				<form action="?" method="post" enctype="multipart/form-data" name="frmEdit" class="form-horizontal">
+				   [#if PROPERTIES!=""#]
+				   <fieldset>
+					  <div class="form-group" style="margin-right: 5px; margin-left: 5px;">
+						 <div>
+							<table class="table table-stripped" style="font-size: 1.2rem;">
+							   <thead><tr>
+								  <th><#LANG_TITLE#></th>
+								  <th><#LANG_VALUE#></th>
+								  <th><#LANG_LINKED_OBJECT#></th>
+								  <th><#LANG_LINKED_PROPERTY#></th>
+								  <th><#LANG_METHOD#></th>
+								  <th valign="top"><#LANG_UPDATED#></th>
+							   </tr></thead>
+							   <tbody>
+							   [#begin PROPERTIES#]
+							   <tr>
+								  <td valign="middle" style="vertical-align: middle;width: 15%;">[#if READONLY==1#]<i class="las la-book-open" style="vertical-align: sub;font-size: 1.9rem;color: #cc5252;"></i>[#else#]<i class="las la-sync" style="vertical-align: sub;font-size: 1.9rem;color: #57b129;"></i>[#endif#] [#TITLE#]</td>
+								  <td valign="middle" style="vertical-align: middle;">[#VALUE#]</td>
+								  <td valign="middle" style="vertical-align: middle;"><input type="text" name="linked_object[#ID#]" id="linked_object[#ID#]" value="[#LINKED_OBJECT#]"></td>
+								  <td valign="middle" style="vertical-align: middle;"><input type="text" name="linked_property[#ID#]" id="linked_property[#ID#]" value="[#LINKED_PROPERTY#]"></td>
+								  <td valign="middle" style="vertical-align: middle;"><input type="text" name="linked_method[#ID#]" id="linked_method[#ID#]" value="[#LINKED_METHOD#]"></td>
+								  [#module name="linkedobject" object_field="linked_object<#PROPERTIES.ID#>" property_field="linked_property<#PROPERTIES.ID#>" method_field="linked_method<#PROPERTIES.ID#>" width="150"#]
+								  <td valign="middle" style="vertical-align: middle;">[#UPDATED#]</td>
+							   </tr>
+							   [#end PROPERTIES#]
+							   </tbody>
+							</table> 
+						 </div>
+					  </div>
+					  <div class="form-group">
+						 <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12" style="text-align: center;">
+							<button type="submit" name="subm" value="Submit" class="btn btn-success"><#LANG_SUBMIT#></button>
+							<input type="hidden" name="view_mode" value="update_metrics"> 
+						 </div>
+					  </div>
+				   </fieldset>
+				   [#endif#]
+				</form>
+			</div>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col-md-12" style="text-align: center;border-top: 1px solid #e7e7e7;padding-top: 15px;font-size: 1rem;color: gray;">
+			Версия модуля: <i class="las la-code-branch" style="vertical-align: middle;"></i> v.[#VERSION_MODULE#] | Проект доступен на <a href="https://github.com/SmoKE585/majordomo_easy_fkb" target="_blank"><i class="lab la-github"></i> GitHub</a> | Автор: Александр SmoKE xD Аболмасов
+		</div>
+	</div>
+[#else#]
+	[#if SETTINGS_BLOCK==0#]
+	<div class="row">
+		<div class="col-md-12" style="text-align: center">
+			<img src="/templates/easy_fkb/img/logo.png" style="width:200px">
+			<h2>Easy Fully Kiosk Browser</h2>
+			<h4>Простое управление планшетом используя <mark>Fully Kiosk Browser</mark></h4>
+			<p>Для начала работы - укажите IP и пароль для доступа к API</p>
+			<form action="?" method="post" enctype="multipart/form-data" name="frmEdit">
+					<button type="submit" name="subm" value="Submit" class="btn btn-success"><i class="las la-power-off"></i> Указать данные</button>
+				<input type="hidden" name="view_mode" value="settings">
+			</form>
+		</div>
+	</div>
+	[#endif#]
+[#endif#]

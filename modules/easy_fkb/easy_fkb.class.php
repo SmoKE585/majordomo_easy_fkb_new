@@ -270,9 +270,6 @@ class easy_fkb extends module {
 			$out['STATUS_DEVICE_ADMIN'] = $this->config['STATUS_DEVICE_ADMIN'];
 			$out['MOTION_DETECTED'] = $this->config['MOTION_DETECTED'];
 			$out['LAST_DATA_UPDATE'] = date('d.m.Y H:i:s', $this->config['LAST_DATA_UPDATE']);
-		} else {
-			$this->config['ERROR'] = 1;
-			$this->saveConfig();
 		}
 		
 		
@@ -592,6 +589,9 @@ class easy_fkb extends module {
 	
 	function usual(&$out) {
 		$this->admin($out);
+		
+		$screenBrightness = SQLSelectOne("SELECT `VALUE` FROM `easy_fkb` WHERE TITLE = 'screenBrightness' AND LINKED_OBJECT != '' AND LINKED_PROPERTY != ''");
+		$out['SET_SCREEN_BRIGH'] = $screenBrightness['VALUE'];
 	}
 	
 	function DeleteLinkedProperties() {
@@ -629,6 +629,8 @@ class easy_fkb extends module {
    }
 	
 	function processCycle() {
+		setGlobal("cycle_{$this->name}", '1');
+		
 		$this->getConfig();
 		$this->getInfomation();
 	}

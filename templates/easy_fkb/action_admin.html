@@ -15,11 +15,13 @@
 	  </div>
 	  <div id="navbar" class="navbar-collapse collapse">
 		<ul class="nav navbar-nav">
+			<!---
 			[#if CYCLE_STATUS=="start"#]
-				<li class="active"><a href="#" target="_blank" style="color: green;font-weight: bold;"><i class="las la-sync-alt" style="font-size: 1.9rem;vertical-align: top;"></i> Цикл запущен</a></li>
+				<li class="active"><a href="#" target="_blank" style="color: green;font-weight: bold;"><i class="las la-sync-alt" style="font-size: 1.9rem;vertical-align: top;"></i> Подключено</a></li>
 			[#else#]
-				<li class="active"><a href="#" target="_blank" style="color: red;font-weight: bold;"><i class="las la-sync-alt" style="font-size: 1.9rem;vertical-align: top;"></i> Цикл остановлен</a></li>
+				<li class="active"><a href="#" onclick="location.reload();" style="color: red;font-weight: bold;"><i class="las la-sync-alt" style="font-size: 1.9rem;vertical-align: top;"></i> Нет ответа от FKB</a></li>
 			[#endif CYCLE_STATUS#]
+			--->
 			<li><a href="https://yadi.sk/d/eHR18ygb1NR-oQ" target="_blank"><i class="las la-download" style="font-size: 1.9rem;vertical-align: top;"></i> Скачать FKB</a></li>
 			<li><a href="https://mjdm.ru/forum/viewtopic.php?f=5&t=6960" target="_blank"><i class="las la-comment-dots" style="font-size: 1.9rem;vertical-align: top;"></i> Обсуждение на форуме</a></li>
 			

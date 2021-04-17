@@ -105,7 +105,7 @@ class easy_fkb extends module {
 			if($reload == 0) {
 				$name = $responce['deviceManufacturer'] .' '. $responce['deviceName'];
 				
-				$double = SQLSelectOne('SELECT * FROM `easy_fkb_device` WHERE TITLE = "'.$name.'"');
+				$double = SQLSelectOne('SELECT * FROM `easy_fkb_device` WHERE IP = "'.$ipaddress.'"');
 				
 				if(array_search($name, $double)) return false;
 				
@@ -127,16 +127,15 @@ class easy_fkb extends module {
 			$time = time();
 			
 			foreach($loadSkills[0] as $key => $value) {
-				$recSkills['TITLE'] = $value['skills'];
-				$recSkills['VALUE'] = $value['value'];
-				$recSkills['READONLY'] = $value['readonly'];
+				$recSkills['TITLE'] = $value['TITLE'];
+				$recSkills['VALUE'] = $value['VALUE'];
+				$recSkills['READONLY'] = $value['READONLY'];
 				$recSkills['UPDATED'] = $time;
 				$recSkills['DEVICE_ID'] = $id;
-				
+		
 				SQLInsert('easy_fkb', $recSkills);
 			}
-			
-			
+
 			return true;
 		}
 	}
@@ -254,6 +253,21 @@ class easy_fkb extends module {
 				$out['ADD_DEV_PORT'] = $port;
 				$out['ADD_DEV_PASS'] = $adminpass;
 			}
+		}
+		
+		if($this->view_mode == 'delDevice' && !empty($this->id)) {
+			$properties = SQLSelect("SELECT * FROM easy_fkb WHERE LINKED_OBJECT != '' AND LINKED_PROPERTY != '' AND DEVICE_ID = '".DBSafe($this->id)."'");
+
+			if (!empty($properties)) {
+				foreach ($properties as $prop) {
+					removeLinkedProperty($prop['LINKED_OBJECT'], $prop['LINKED_PROPERTY'], $this->name);
+				}
+			}
+			
+			SQLExec("DELETE FROM `easy_fkb_device` WHERE ID = '".DBSafe($this->id)."'");
+			SQLExec("DELETE FROM `easy_fkb` WHERE DEVICE_ID = '".DBSafe($this->id)."'");
+			
+			$this->redirect('?');
 		}
 		
 		if($this->view_mode == 'reloadskills' && !empty($this->id)) {

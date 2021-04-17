@@ -165,7 +165,7 @@ class easy_fkb extends module {
 					$value = '0';
 				}
 				
-				if($key == 'isScreenOn' || $key == 'kioskMode' || $key == 'screenBrightness' || $key == 'startUrl') {
+				if($key == 'isScreenOn' || $key == 'screenOn' || $key == 'kioskMode' || $key == 'screenBrightness' || $key == 'startUrl') {
 					$readonly = 0;
 				} else {
 					$readonly = 1;
@@ -399,7 +399,7 @@ class easy_fkb extends module {
 				$devID = SQLSelectOne("SELECT IP,PASSWORD FROM `easy_fkb_device` WHERE ID = '".DBSafe($properties[$i]['DEVICE_ID'])."'");
 				
 				//Логика для управление экраном
-				if($properties[$i]['TITLE'] == 'isScreenOn') {
+				if($properties[$i]['TITLE'] == 'isScreenOn' || $properties[$i]['TITLE'] == 'screenOn') {
 					((int) strip_tags($value) == 1) ? $newVal = 1 : $newVal = 0;
 					
 					if($properties[$i]['VALUE'] != $newVal && $newVal == 1) {

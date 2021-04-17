@@ -13,7 +13,7 @@
     $easy_fkb = new easy_fkb();
     $easy_fkb->getConfig();
 	
-    $sleepTime = (int) $easy_fkb->config['TIME_AUTO_RELOAD'];
+    $sleepTime = 60;
 
     if ($sleepTime == 0) {
         setGlobal('cycle_easy_fkb', 'stop');

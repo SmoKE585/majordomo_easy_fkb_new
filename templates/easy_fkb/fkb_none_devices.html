@@ -1,0 +1,66 @@
+<div class="row">
+	<div class="col-md-12 text-center">
+		<img src="/templates/easy_fkb/img/logo.png" style="width:200px">
+		<h2>Easy Fully Kiosk Browser</h2>
+		<h4>Простое управление планшетом используя <mark>Fully Kiosk Browser</mark></h4>
+		<p>Для начала работы - укажите IP и пароль для доступа к API</p>
+		
+		<button type="button" onclick="$('#hiddenAddDev').show();$(this).hide();$('.alert').hide();" class="btn btn-success"><i class="las la-power-off"></i> Указать данные</button>
+		
+		[#if ADD_DEV_ERROR==1#]
+		<div class="alert alert-danger" style="margin-top:10px;">Ошибка подключения к устройству! Проверьте введённые данные и убедитесь, что устройство не добавлено ранее! </div>
+		[#endif#]
+		
+		<form action="?" method="post" enctype="multipart/form-data" style="display:none;margin-top:10px;" name="frmEdit" id="hiddenAddDev">
+		<div class="row">
+			<div class="col-md-8 col-md-offset-2">
+				<div class="row">
+					<div class="col-lg-2">
+						<div class="input-group">
+							<span class="input-group-addon">
+								<i class="glyphicon glyphicon-globe"></i>
+							</span>
+							<select name="protokol" class="form-control" required>
+								<option value="http">HTTP</option>
+								<option value="https">HTTPS</option>
+							</select>
+						</div>
+					</div>
+					<div class="col-lg-4">
+						<div class="input-group">
+							<span class="input-group-addon">
+								<i class="glyphicon glyphicon-globe"></i>
+							</span>
+							<input type="text" name="ipaddress" value="[#ADD_DEV_IP#]" class="form-control" placeholder="Введите IP адрес планшета" required>
+						</div>
+					</div>
+					<div class="col-lg-2">
+						<div class="input-group">
+							<span class="input-group-addon">
+								<i class="glyphicon glyphicon-log-in"></i>
+							</span>
+							<input type="text" name="port" class="form-control" value="[#ADD_DEV_PORT#]" placeholder="Введите порт планшета" value="2323" required>
+						</div>
+					</div>
+					<div class="col-lg-4">
+						<div class="input-group">
+							<span class="input-group-addon">
+								<i class="glyphicon glyphicon-tower"></i>
+							</span>
+							<input type="text" name="adminpass" class="form-control" value="[#ADD_DEV_PASS#]" placeholder="Введите пароль админастратора" required>
+						</div>
+					</div>
+				</div>
+				
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-4 col-md-offset-4" style="margin-top:10px;">
+				<button type="submit" name="subm" value="Submit" class="btn btn-success"><i class="las la-save"></i> Проверить и сохранить</button>
+			</div>
+		</div>
+		
+		<input type="hidden" name="view_mode" value="addDevice">
+		</form>
+	</div>
+</div>

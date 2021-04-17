@@ -4,7 +4,7 @@ class easy_fkb extends module {
 		$this->name="easy_fkb";
 		$this->title="Easy FKB";
 		$this->module_category="<#LANG_SECTION_DEVICES#>";
-		$this->version="2.1";
+		$this->version="3.0";
 		$this->checkInstalled();
 	}
 
@@ -67,234 +67,261 @@ class easy_fkb extends module {
 		}
 		$out['VIEW_MODE']=$this->view_mode;
 		$out['EDIT_MODE']=$this->edit_mode;
+		$out['ID']=$this->id;
 		$out['MODE']=$this->mode;
 		$out['ACTION']=$this->action;
 		$this->data=$out;
 		$p=new parser(DIR_TEMPLATES.$this->name."/".$this->name.".html", $this->data, $this);
 		$this->result=$p->result;
 	}
+	
+	function getAllDevices() {
+		$req = SQLSelect('SELECT * FROM easy_fkb_device ORDER BY ID');
+		return $req;
+	}
+	
+	function reloadSkills($id) {
+		return $this->addDevice('0','0','0','0', $id);
+	}
+	
+	
+	function addDevice($protokol, $ipaddress, $port, $adminpass, $reload = 0) {
+		if($reload != 0) {
+			$device = SQLSelectOne("SELECT * FROM easy_fkb_device WHERE ID = '".DBSafe($reload)."'");
+			if(!$device['ID']) return false;
+			
+			$ipaddress = $device['IP'];
+			$adminpass = $device['PASSWORD'];
 
+		} else {
+			$ipaddress = $protokol.'://'.$ipaddress.':'.$port;
+		}
+		
+		$responce = $this->getCURL($ipaddress.'/?cmd=deviceInfo&type=json&password='.$adminpass);
+		
+		if($responce['status'] == 'Error') {
+			return false;
+		} else if($responce['deviceName']) {
+			if($reload == 0) {
+				$name = $responce['deviceManufacturer'] .' '. $responce['deviceName'];
+				
+				$double = SQLSelectOne('SELECT * FROM `easy_fkb_device` WHERE TITLE = "'.$name.'"');
+				
+				if(array_search($name, $double)) return false;
+				
+				$arrayRecord = [];
+				
+				$arrayRecord['TITLE'] = $name;
+				$arrayRecord['IP'] = $ipaddress;
+				$arrayRecord['STATUS'] = 1;
+				$arrayRecord['PASSWORD'] = $adminpass;
+				$arrayRecord['UPDATED'] = time();
+				
+				$id = SQLInsert('easy_fkb_device', $arrayRecord);
+			} else {
+				$id = $reload;
+			}
+			
+			$loadSkills = $this->getBaseInfo($id);
+			$recSkills = [];
+			$time = time();
+			
+			foreach($loadSkills[0] as $key => $value) {
+				$recSkills['TITLE'] = $value['skills'];
+				$recSkills['VALUE'] = $value['value'];
+				$recSkills['READONLY'] = $value['readonly'];
+				$recSkills['UPDATED'] = $time;
+				$recSkills['DEVICE_ID'] = $id;
+				
+				SQLInsert('easy_fkb', $recSkills);
+			}
+			
+			
+			return true;
+		}
+	}
+	
+	function getBaseInfo($id) {
+		$req = SQLSelectOne('SELECT * FROM `easy_fkb_device` WHERE ID = "'.$id.'"');
+
+		$responce = $this->getCURL($req['IP'].'/?cmd=deviceInfo&type=json&password='.$req['PASSWORD']);
+		//$responce_sett = $this->getCURL('http://'.$req['IP'].'/?cmd=listSettings&password='.$req['PASSWORD'].'&type=json');
+		
+		//$responce = array_merge($responce, $responce_sett);
+		
+		if($responce['status'] == 'Error') {
+			return false;
+		} else if($responce['deviceName']) {
+			$result = [];
+			ksort($responce);
+			$skillsID = 0;
+			
+			foreach($responce as $key => $value) {
+				if($key == 'webviewUa' || $key == 'androidVersion' || $key == 'androidSdk' || $key == 'appVersionCode' || $key == 'appVersionName' || $key == 'currentFragment' 
+				|| $key == 'currentTabIndex' || $key == 'hostname6' || $key == 'ip6') continue;
+				
+				if($value == true && gettype($value) == 'boolean') {
+					$value = '1';
+				} else if($value == false && gettype($value) == 'boolean') {
+					$value = '0';
+				}
+				
+				if($key == 'isScreenOn' || $key == 'kioskMode' || $key == 'screenBrightness' || $key == 'startUrl') {
+					$readonly = 0;
+				} else {
+					$readonly = 1;
+				}
+				
+				$result[] = [
+					'TITLE' => $key,
+					'VALUE' => $value,
+					'READONLY' => $readonly,
+				];
+				
+				$skillsID++;
+			}
+			
+			//Кастомные навыки
+			$result[] = [
+				'TITLE' => 'text-to-speech',
+				'VALUE' => '',
+				'READONLY' => 0,
+			];
+			$result[] = [
+				'TITLE' => 'customCMD',
+				'VALUE' => '',
+				'READONLY' => 0,
+			];
+			$result[] = [
+				'TITLE' => 'clearCache',
+				'VALUE' => '',
+				'READONLY' => 0,
+			];
+			$result[] = [
+				'TITLE' => 'timeToScreenOff',
+				'VALUE' => '',
+				'READONLY' => 0,
+			];
+			
+			return array($result);
+		}
+	}
+	
+	function getInfomation($id = '') {
+		//Получаем список устройтв
+		if($id != '') {
+			$filter = "WHERE ID = '".$id."'";
+		}
+		
+		$req = SQLSelect('SELECT * FROM `easy_fkb_device` '.$filter);
+		
+		foreach($req as $value) {
+			//Запращиваем инфу по ним
+			$data = $this->getBaseInfo($value['ID']);
+			$skillsDB = SQLSelect("SELECT * FROM `easy_fkb` WHERE DEVICE_ID = '".$value['ID']."'");
+			$currTime = time();
+			
+			foreach($data[0] as $key => $upSkills) {
+				foreach($skillsDB as $keyDB => $DBData) {				
+					if($DBData['TITLE'] == $upSkills['TITLE'] && $DBData['VALUE'] != $upSkills['VALUE']) {
+						$this->ProcessCommand($upSkills['TITLE'], $upSkills['VALUE'], array('DEVICE_ID' => $value['ID']));
+			
+						$skillsDB[$keyDB]['VALUE'] = $upSkills['VALUE'];
+						$skillsDB[$keyDB]['UPDATED'] = $currTime;
+						SQLUpdate('easy_fkb', $skillsDB[$keyDB]);
+					}
+				}				
+			}
+		}
+		
+	}
+	
 	function admin(&$out) {
 		$this->getConfig();
 		
-		if($this->view_mode == 'settings') {
-			if($this->config['SETTINGS_BLOCK'] == 1) {
-				$this->config['SETTINGS_BLOCK'] = 0;
+		if($this->view_mode == 'addDevice') {
+			global $protokol;
+			global $ipaddress;
+			global $port;
+			global $adminpass;
+		
+			if($this->addDevice($protokol, $ipaddress, $port, $adminpass)) {
+				$this->redirect("?");
 			} else {
-				$this->config['SETTINGS_BLOCK'] = 1;
+				//Ошибка
+				$out['ADD_DEV_ERROR'] = 1;
+				$out['ADD_DEV_IP'] = $ipaddress;
+				$out['ADD_DEV_PORT'] = $port;
+				$out['ADD_DEV_PASS'] = $adminpass;
 			}
-			
-			$this->saveConfig();
-			$this->redirect("?");
 		}
 		
-		if($this->view_mode == 'save_settings') {
-			global $ipaddress;
-			$this->config['IP'] = $ipaddress;
-			global $adminpass;
-			$this->config['PASSWORD'] = $adminpass;
-			global $logsEnabled;
-			$this->config['LOGS_ENABLED'] = $logsEnabled;
-			global $timeAutoReload;
-			if($timeAutoReload < 60) $timeAutoReload = 60; 
-			$this->config['TIME_AUTO_RELOAD'] = $timeAutoReload;
-			$this->config['NEXT_DATA_UPDATE'] = '';
-			
-			$this->config['SETTINGS_BLOCK'] = 0;
-			
-			$currTime = date('d.m.Y H:s:i', time());
-			$arrayRecord = [
-				1 => [
-					'TITLE' => 'deviceName',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 1,
-				],
-				2 => [
-					'TITLE' => 'freeSpaces',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 1,
-				],
-				3 => [
-					'TITLE' => 'battary',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 1,
-				],
-				4 => [
-					'TITLE' => 'screenBrightness',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				5 => [
-					'TITLE' => 'isScreenOn',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				6 => [
-					'TITLE' => 'plugged',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 1,
-				],
-				7 => [
-					'TITLE' => 'kioskMode',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				8 => [
-					'TITLE' => 'text-to-speech',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				9 => [
-					'TITLE' => 'timeToScreenOff',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				10 => [
-					'TITLE' => 'currentPage',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				11 => [
-					'TITLE' => 'runningApp',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-				12 => [
-					'TITLE' => 'setVolume',
-					'VALUE' => '',
-					'UPDATED' => $currTime,
-					'READONLY' => 0,
-				],
-			];
-			
-			foreach($arrayRecord as $key => $value) {
-				$ifRecord = SQLSelectOne("SELECT `ID` FROM `easy_fkb` WHERE TITLE = '".dbSafe($arrayRecord[$key]["TITLE"])."'");
-				
-				if(empty($ifRecord['ID'])) {
-					SQLInsert('easy_fkb', $arrayRecord[$key]);
-				} else {
-					SQLUpdate('easy_fkb', $arrayRecord[$key]);
-				}
-			}
-			
-			$this->saveConfig();
-			
-			setGlobal("cycle_{$this->name}", 'start');
-			
-			$this->redirect("?");
+		if($this->view_mode == 'reloadskills' && !empty($this->id)) {
+			$this->reloadSkills(strip_tags($this->id));
+			$this->redirect('?');
 		}
+		
+		$allDevice = $this->getAllDevices();
+		
+		if(!$allDevice || $this->view_mode == 'add') {
+			$out['START_PAGE'] = 1;
+		} else {
+			$out['DEVICES'] = $allDevice;
+		}
+		
+		if($this->view_mode == 'skills' && !empty($this->id)) {
+			$this->getInfomation($this->id);
+			
+			$skills = SQLSelect("SELECT * FROM `easy_fkb` WHERE `DEVICE_ID` = '".DBSafe($this->id)."'");
+			$out['BASE_SKILLS'] = $skills;
+			
+			$skills = SQLSelectOne("SELECT * FROM `easy_fkb_device` WHERE `ID` = '".DBSafe($this->id)."'");
+			$out['DEVICE_IP'] = $skills['IP'];
+			$out['DEVICE_PASS'] = $skills['PASSWORD'];
+			$out['DEVICE_STATUS'] = $skills['STATUS'];
+		}
+		
 		
 		if($this->view_mode == 'update_metrics') {
-			$properties = SQLSelect("SELECT * FROM easy_fkb ORDER BY ID");
-			$total = count($properties);
+			global $id;
 			
-			for($i = 0; $i < $total; $i++) {
-				//debMes('Цикл - '.$total, 'easy_fkb');
+			$skills = SQLSelect("SELECT * FROM `easy_fkb` WHERE DEVICE_ID='" . DBSafe($id) . "' ORDER BY ID");
+			$total = count($skills);
+			for ($i = 0; $i < $total; $i++) {
+				$old_linked_object = $skills[$i]['LINKED_OBJECT'];
+                $old_linked_property = $skills[$i]['LINKED_PROPERTY'];
 				
-				$old_linked_object = $properties[$i]['LINKED_OBJECT'];
-				$old_linked_property = $properties[$i]['LINKED_PROPERTY'];
+				global ${'linked_object' . $skills[$i]['ID']};
+                $skills[$i]['LINKED_OBJECT'] = trim(${'linked_object' . $skills[$i]['ID']});
+                global ${'linked_property' . $skills[$i]['ID']};
+                $skills[$i]['LINKED_PROPERTY'] = trim(${'linked_property' . $skills[$i]['ID']});
+                global ${'linked_method' . $skills[$i]['ID']};
+                $skills[$i]['LINKED_METHOD'] = trim(${'linked_method' . $skills[$i]['ID']});
 
-				global ${'linked_object'.$properties[$i]['ID']};
-				$properties[$i]['LINKED_OBJECT'] = trim(${'linked_object'.$properties[$i]['ID']});
-
-				global ${'linked_property'.$properties[$i]['ID']};
-				$properties[$i]['LINKED_PROPERTY'] = trim(${'linked_property'.$properties[$i]['ID']});
-
-				global ${'linked_method'.$properties[$i]['ID']};
-				$properties[$i]['LINKED_METHOD'] = trim(${'linked_method'.$properties[$i]['ID']});
-
-				// Если юзер удалил привязанные свойство и метод, но забыл про объект, то очищаем его.
-				if ($properties[$i]['LINKED_OBJECT'] != '' && ($properties[$i]['LINKED_PROPERTY'] == '' && $properties[$i]['LINKED_METHOD'] == '')) {
-					$properties[$i]['LINKED_OBJECT'] = '';
-				}
-
-				// Если юзер удалил только привязанный объект, то свойство и метод тоже очищаем.
-				if ($properties[$i]['LINKED_OBJECT'] == '' && ($properties[$i]['LINKED_PROPERTY'] != '' || $properties[$i]['LINKED_METHOD'] != '')) {
-					$properties[$i]['LINKED_PROPERTY'] = '';
-					$properties[$i]['LINKED_METHOD'] = '';
-				}
-
-				if ($old_linked_object && $old_linked_property && ($old_linked_property != $properties[$i]['LINKED_PROPERTY'] || $old_linked_object != $properties[$i]['LINKED_OBJECT'])) {
-					removeLinkedProperty($old_linked_object, $old_linked_property, $this->name);
-				}
-
-				if ($properties[$i]['LINKED_OBJECT'] && $properties[$i]['LINKED_PROPERTY']) {
-					addLinkedProperty($properties[$i]['LINKED_OBJECT'], $properties[$i]['LINKED_PROPERTY'], $this->name);
-				}
-
-				SQLUpdate('easy_fkb', $properties[$i]);
+				SQLUpdate('easy_fkb', $skills[$i]);
+				
+				if ($old_linked_object != $skills[$i]['LINKED_OBJECT'] && $old_linked_property != $skills[$i]['LINKED_PROPERTY']) {
+                    removeLinkedProperty($old_linked_object, $old_linked_property, $this->name);
+                }
+                if ($skills[$i]['LINKED_OBJECT'] && $skills[$i]['LINKED_PROPERTY']) {
+                    addLinkedProperty($skills[$i]['LINKED_OBJECT'], $skills[$i]['LINKED_PROPERTY'], $this->name);
+                }
+				
+				
 			}
-			$this->config['NEXT_DATA_UPDATE'] = '';
-			$this->saveConfig();
-			$this->redirect("?");
 		}
 		
-		if($this->view_mode == 'toggle_screen') {
-			if($dataLoad['isScreenOn'] == false) {
-				$this->toggleSettings('screenOn');
-				$this->config['STATUS_DISPLAY'] = 'Включен';
-			} else {
-				$this->toggleSettings('screenOff');
-				$this->config['STATUS_DISPLAY'] = 'Отключен';
-			}
-			
-			$this->saveConfig();
-			$this->redirect("?");
-		}
-
-		if($this->getInfomation() == 0) {
-			$out['TABLET_NAME'] = $this->config['TABLET_NAME'];
-			$out['WIFI_SIGNAL'] = $this->config['WIFI_SIGNAL'];
-			$out['WIFI_SSID'] = $this->config['WIFI_SSID'];
-			$out['VERSION_APP'] = $this->config['VERSION_APP'];
-			$out['TOTAL_SPACE'] = $this->config['TOTAL_SPACE'];
-			$out['TOTAL_FREE_SPACE'] = $this->config['TOTAL_FREE_SPACE'];
-			$out['BATTARY_LEVEL'] = $this->config['BATTARY_LEVEL'];
-			$out['SCREEN_BRIGH'] = $this->config['SCREEN_BRIGH'];
-			$out['START_URL'] = $this->config['START_URL'];
-			$out['CURRENT_URL'] = $this->config['CURRENT_URL'];
-			$out['STATUS_DISPLAY'] = $this->config['STATUS_DISPLAY'];
-			$out['STATUS_KIOSK'] = $this->config['STATUS_KIOSK'];
-			$out['STATUS_CHARGE'] = $this->config['STATUS_CHARGE'];
-			$out['STATUS_DEVICE_ADMIN'] = $this->config['STATUS_DEVICE_ADMIN'];
-			$out['MOTION_DETECTED'] = $this->config['MOTION_DETECTED'];
-			$out['LAST_DATA_UPDATE'] = date('d.m.Y H:i:s', $this->config['LAST_DATA_UPDATE']);
-		}
+		$out['CYCLE_STATUS'] = getGlobal("ThisComputer.cycle_{$this->name}");
 		
-		
-		$out['CYCLE_STATUS'] = getGlobal("cycle_{$this->name}");
-		$out['PROPERTIES'] = SQLSelect("SELECT * FROM `easy_fkb` ORDER BY ID");
-		
-		$out['LOGS_ENABLED'] = $this->config['LOGS_ENABLED'];
-		$out['ERROR'] = $this->config['ERROR'];
-		$out['SETTINGS_BLOCK'] = $this->config['SETTINGS_BLOCK'];
-		$out['IP'] = $this->config['IP'];
-		$out['PASSWORD'] = $this->config['PASSWORD'];
-		$out['TIME_AUTO_RELOAD'] = $this->config['TIME_AUTO_RELOAD'];
 		$out['VERSION_MODULE'] = $this->version;
-	}
-	
-	function toggleSettings($cmd, $value = '') {
-		return $this->getCURL('http://'.$this->config['IP'].'/?cmd='.$cmd.$value.'&password='.$this->config['PASSWORD'].'&type=json');
 	}
 	
 	function getCURL($url) {
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 60); 
-		curl_setopt($ch, CURLOPT_TIMEOUT, 60); 
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20); 
+		curl_setopt($ch, CURLOPT_TIMEOUT, 20); 
 		$data = curl_exec($ch);
 		curl_close($ch);
 		
@@ -303,115 +330,13 @@ class easy_fkb extends module {
 		return json_decode($data, TRUE);
 	}
 	
-	function getInfomation() {
-		if(time() > $this->config['NEXT_DATA_UPDATE']) {
-			$dataLoad = $this->getCURL('http://'.$this->config['IP'].'/?cmd=deviceInfo&password='.$this->config['PASSWORD'].'&type=json');
-			$dataLoadSettings = $this->getCURL('http://'.$this->config['IP'].'/?cmd=listSettings&password='.$this->config['PASSWORD'].'&type=json');
-		
-			if($dataLoad['deviceManufacturer'] != '') {
-				$this->config['TABLET_NAME'] = mb_strtoupper($dataLoad['deviceManufacturer']).' '.$dataLoad['deviceName'];
-				($dataLoad['wifiSignalLevel'] > 0) ? $this->config['WIFI_SIGNAL'] = 'Подключен' : $this->config['WIFI_SIGNAL'] = 'Не подключен';
-				$this->config['WIFI_SSID'] = $dataLoad['ssid'];
-				$this->config['VERSION_APP'] = $dataLoad['appVersionName'];
-				$this->config['TOTAL_SPACE'] = $dataLoad['internalStorageTotalSpace'];
-				$this->config['TOTAL_FREE_SPACE'] = $dataLoad['internalStorageFreeSpace'];
-				$this->config['BATTARY_LEVEL'] = $dataLoad['batteryLevel'];
-				$this->config['SCREEN_BRIGH'] = $dataLoad['screenBrightness'];
-				$this->config['START_URL'] = $dataLoad['startUrl'];
-				$this->config['CURRENT_URL'] = $dataLoad['currentPage'];
-				
-				($dataLoad['isScreenOn'] == true) ? $this->config['STATUS_DISPLAY'] = 'Включен' : $this->config['STATUS_DISPLAY'] = 'Отключен';
-				($dataLoad['kioskMode'] == true) ? $this->config['STATUS_KIOSK'] = 'Активирован' : $this->config['STATUS_KIOSK'] = 'Отключен';
-				($dataLoadSettings['motionDetection'] == true) ? $this->config['MOTION_DETECTED'] = 'Активирован' : $this->config['MOTION_DETECTED'] = 'Отключен';
-				($dataLoad['plugged'] == true) ? $this->config['STATUS_CHARGE'] = 'От сети' : $this->config['STATUS_CHARGE'] = 'От батареи';
-				($dataLoad['isDeviceAdmin'] == true) ? $this->config['STATUS_DEVICE_ADMIN'] = 'Активирован' : $this->config['STATUS_DEVICE_ADMIN'] = 'Отключен';
-				
-				$this->config['LAST_DATA_UPDATE'] = time();
-				$this->config['NEXT_DATA_UPDATE'] = time()+$this->config['TIME_AUTO_RELOAD'];
-				
-				$this->config['ERROR'] = 0;
-				
-				$currTime = date('d.m.Y H:s:i', time());
-				$arrayRecord = [
-					1 => [
-						'TITLE' => 'deviceName',
-						'VALUE' => $this->config['TABLET_NAME'],
-						'UPDATED' => $currTime,
-					],
-					2 => [
-						'TITLE' => 'freeSpaces',
-						'VALUE' => ($this->config['TOTAL_FREE_SPACE']/1000000),
-						'UPDATED' => $currTime,
-					],
-					3 => [
-						'TITLE' => 'battary',
-						'VALUE' => $this->config['BATTARY_LEVEL'],
-						'UPDATED' => $currTime,
-					],
-					4 => [
-						'TITLE' => 'screenBrightness',
-						'VALUE' => $this->config['SCREEN_BRIGH'],
-						'UPDATED' => $currTime,
-					],
-					5 => [
-						'TITLE' => 'isScreenOn',
-						'VALUE' => ($dataLoad['isScreenOn'] == true) ? 1 : 0,
-						'UPDATED' => $currTime,
-					],
-					6 => [
-						'TITLE' => 'plugged',
-						'VALUE' => ($dataLoad['plugged'] == true) ? 1 : 0,
-						'UPDATED' => $currTime,
-					],
-					7 => [
-						'TITLE' => 'kioskMode',
-						'VALUE' => ($dataLoad['kioskMode'] == true) ? 1 : 0,
-						'UPDATED' => $currTime,
-					],
-					8 => [
-						'TITLE' => 'timeToScreenOff',
-						'VALUE' => $dataLoadSettings['timeToScreenOffV2'],
-						'UPDATED' => $currTime,
-					],
-					9 => [
-						'TITLE' => 'currentPage',
-						'VALUE' => dbSafe($dataLoad['currentPage']),
-						'UPDATED' => $currTime,
-						'READONLY' => 0,
-					],
-					10 => [
-						'TITLE' => 'runningApp',
-						'VALUE' => '1',
-						'UPDATED' => $currTime,
-						'READONLY' => 0,
-					],
-				];
-				
-				foreach($arrayRecord as $key => $value) {
-					//Циклом установим значения и расскидаем по свойствам
-					$this->ProcessCommand($arrayRecord[$key]["TITLE"], $arrayRecord[$key]["VALUE"]);
-				}
-				
-				$this->saveConfig();
-				
-				return 0;
-			} else {
-				//Поставим флаг 0, что будет значить, что устройство ОФФЛАЙН
-				$this->ProcessCommand('runningApp', '0');
-				
-				//$this->config['TABLET_NAME'] = '';
-				//$this->config['ERROR'] = 1;
-				//$this->saveConfig();
-				
-				return 1;
-			}
-		} else {
-			return 0;
-		}
+	function toggleSettings($cmd, $value) {
+		return $this->getCURL('http://'.$this->config['IP'].'/?cmd='.$cmd.$value.'&password='.$this->config['PASSWORD'].'&type=json');
 	}
 	
-	function ProcessCommand($title, $value, $params = 0) {
-		$cmd_rec = SQLSelectOne("SELECT * FROM `easy_fkb` WHERE `TITLE` = '".DBSafe($title)."'");
+	
+	function ProcessCommand($title, $value, $params = 0) {		
+		$cmd_rec = SQLSelectOne("SELECT * FROM `easy_fkb` WHERE `TITLE` = '".DBSafe($title)."' AND DEVICE_ID = '".$params['DEVICE_ID']."'");
 		$old_value = $cmd_rec['VALUE'];
 		$old_value_in_object = getGlobal($cmd_rec['LINKED_OBJECT'] . '.' . $cmd_rec['LINKED_PROPERTY']);
 
@@ -421,14 +346,11 @@ class easy_fkb extends module {
 		// Обновляем значение метрики в таблице модуля.
 		SQLUpdate('easy_fkb', $cmd_rec);
 		
-		//debMes('Старое значение - '.$old_value.', старое в свойстве - '.$old_value_in_object.' | Новое - '.$value, 'easy_fkb');
-		
 		// Если значение метрики не изменилось, то выходим.
 		if ($old_value == $value && $old_value_in_object == $value) return;
 		
 		// Иначе обновляем привязанное свойство.
 		if ($cmd_rec['LINKED_OBJECT'] && $cmd_rec['LINKED_PROPERTY'] && (getGlobal($cmd_rec['LINKED_OBJECT'] . '.' . $cmd_rec['LINKED_PROPERTY']) != $value)) {
-			//debMes('SETGLOBAL - '.$old_value.' | Новое - '.$value, 'easy_fkb');
 			setGlobal($cmd_rec['LINKED_OBJECT'] . '.' . $cmd_rec['LINKED_PROPERTY'], $value, array($this->name => '0'));
 		}
 
@@ -460,18 +382,21 @@ class easy_fkb extends module {
 		
 		if ($total) {
 			for ($i = 0; $i < $total; $i++) {
+				$devID = SQLSelectOne("SELECT IP,PASSWORD FROM `easy_fkb_device` WHERE ID = '".DBSafe($properties[$i]['DEVICE_ID'])."'");
+				
 				//Логика для управление экраном
 				if($properties[$i]['TITLE'] == 'isScreenOn') {
 					((int) strip_tags($value) == 1) ? $newVal = 1 : $newVal = 0;
 					
 					if($properties[$i]['VALUE'] != $newVal && $newVal == 1) {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=screenOn&password='.$this->config['PASSWORD'].'&type=json');
+						$responce = $this->getCURL($devID['IP'].'/?cmd=screenOn&password='.$devID['PASSWORD'].'&type=json');
 					} else if($properties[$i]['VALUE'] != $newVal && $newVal == 0) {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=screenOff&password='.$this->config['PASSWORD'].'&type=json');
+						$responce = $this->getCURL($devID['IP'].'/?cmd=screenOff&password='.$devID['PASSWORD'].'&type=json');
 					}
-					
+	
 					if($responce['status'] == 'OK') {
-						$this->ProcessCommand($properties[$i]["TITLE"], $newVal);
+						$this->ProcessCommand($properties[$i]["TITLE"], $newVal, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
+						
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
 					} else {
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
@@ -483,11 +408,11 @@ class easy_fkb extends module {
 					$newVal = strip_tags($value);
 					
 					if($properties[$i]['VALUE'] != $newVal) {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=textToSpeech&text='.$newVal.'&locale=ru&password='.$this->config['PASSWORD'].'&type=json');
+						$responce = $this->getCURL($devID['IP'].'/?cmd=textToSpeech&text='.urlencode($newVal).'&locale=ru&password='.$devID['PASSWORD'].'&type=json');
 					}
 					
 					if($responce['status'] == 'OK') {
-						$this->ProcessCommand($properties[$i]["TITLE"], $newVal);
+						$this->ProcessCommand($properties[$i]["TITLE"], $newVal, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
 					} else {
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
@@ -499,11 +424,11 @@ class easy_fkb extends module {
 					$newVal = (int) strip_tags($value);
 					
 					if($properties[$i]['VALUE'] != $newVal) {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=setStringSetting&key=timeToScreenOffV2&value='.$newVal.'&password='.$this->config['PASSWORD'].'&type=json');
+						$responce = $this->getCURL($devID['IP'].'/?cmd=setStringSetting&key=timeToScreenOffV2&value='.$newVal.'&password='.$devID['PASSWORD'].'&type=json');
 					}
 					
 					if($responce['status'] == 'OK') {
-						$this->ProcessCommand($properties[$i]["TITLE"], $newVal);
+						$this->ProcessCommand($properties[$i]["TITLE"], $newVal, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
 					} else {
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
@@ -511,21 +436,21 @@ class easy_fkb extends module {
 					}
 				}
 				//Логика для отправки перейти на страницу
-				if($properties[$i]['TITLE'] == 'currentPage') {
-					$newVal = strip_tags($value);
+				// if($properties[$i]['TITLE'] == 'currentPage') {
+					// $newVal = strip_tags($value);
 					
-					if($properties[$i]['VALUE'] != $newVal) {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=loadUrl&url='.$newVal.'&password='.$this->config['PASSWORD'].'&type=json');
-					}
+					// if($properties[$i]['VALUE'] != $newVal) {
+						// $responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=loadUrl&url='.$newVal.'&password='.$this->config['PASSWORD'].'&type=json');
+					// }
 					
-					if($responce['status'] == 'OK') {
-						$this->ProcessCommand($properties[$i]["TITLE"], $newVal);
-						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
-					} else {
-						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
-						return;
-					}
-				}
+					// if($responce['status'] == 'OK') {
+						// $this->ProcessCommand($properties[$i]["TITLE"], $newVal);
+						// if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
+					// } else {
+						// if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
+						// return;
+					// }
+				// }
 				//Логика для отправки установка громкости
 				if($properties[$i]['TITLE'] == 'setVolume') {
 					$newVal = (int) strip_tags($value);
@@ -535,10 +460,10 @@ class easy_fkb extends module {
 					if($properties[$i]['VALUE'] != $newVal) {
 						$titleName = $properties[$i]["TITLE"];
 						for($i = 1; $i <= 10; $i++) {
-							$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=setAudioVolume&level='.$newVal.'&stream='.$i.'&password='.$this->config['PASSWORD'].'&type=json');
+							$responce = $this->getCURL($devID['IP'].'/?cmd=setAudioVolume&level='.$newVal.'&stream='.$i.'&password='.$devID['PASSWORD'].'&type=json');
 							
 							if($responce['status'] == 'OK') {
-								$this->ProcessCommand($titleName, $newVal);
+								$this->ProcessCommand($titleName, $newVal, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
 								if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$titleName.'_'.$i.'->new_val='.$newVal, 'easy_fkb');
 							} else {
 								if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$titleName.'_'.$i.'->new_val='.$newVal, 'easy_fkb');
@@ -553,33 +478,43 @@ class easy_fkb extends module {
 					
 					
 					if($properties[$i]['VALUE'] != $newVal && $newVal == '1') {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=setBooleanSetting&key=kioskMode&value=true&password='.$this->config['PASSWORD'].'&type=json');
+						$responce = $this->getCURL($devID['IP'].'/?cmd=setBooleanSetting&key=kioskMode&value=true&password='.$devID['PASSWORD'].'&type=json');
 					} else if($properties[$i]['VALUE'] != $newVal && $newVal == '0') {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=setBooleanSetting&key=kioskMode&value=false&password='.$this->config['PASSWORD'].'&type=json');
+						$responce = $this->getCURL($devID['IP'].'/?cmd=setBooleanSetting&key=kioskMode&value=false&password='.$devID['PASSWORD'].'&type=json');
 					}
 					
 					if($responce['status'] == 'OK') {
-						$this->ProcessCommand($properties[$i]["TITLE"], $newVal);
+						$this->ProcessCommand($properties[$i]["TITLE"], $newVal, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
 					} else {
 						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
 						return;
 					}
 				}
-				//Логика для управлением закрытие программы
-				if($properties[$i]['TITLE'] == 'runningApp') {
-					((int) $value == '1') ? $newVal = '1' : $newVal = '0';
-					
-					
-					if($properties[$i]['VALUE'] != $newVal && $newVal == '0') {
-						$responce = $this->getCURL('http://'.$this->config['IP'].'/?cmd=exitApp&password='.$this->config['PASSWORD'].'&type=json');
+				
+				//Логика для управлением ЯРКОСТЬЮ
+				if($properties[$i]['TITLE'] == 'screenBrightness') {
+					if($properties[$i]['VALUE'] != $value && $value >= '1' && $value <= '255') {
+						$responce = $this->getCURL($devID['IP'].'/?cmd=setStringSetting&key=screenBrightness&value='.$value.'&password='.$devID['PASSWORD'].'&type=json');
 					}
-					
+
 					if($responce['status'] == 'OK') {
-						$this->ProcessCommand($properties[$i]["TITLE"], $newVal);
-						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
+						$this->ProcessCommand($properties[$i]["TITLE"], $value, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
+						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$value, 'easy_fkb');
 					} else {
-						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$newVal, 'easy_fkb');
+						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$value, 'easy_fkb');
+						return;
+					}
+				}
+				//Логика для кастомных команд
+				if($properties[$i]['TITLE'] == 'customCMD') {
+					$responce = $this->getCURL($devID['IP'].'/?password='.$devID['PASSWORD'].'&type=json&'.$value);
+
+					if($responce['status'] == 'OK') {
+						$this->ProcessCommand($properties[$i]["TITLE"], $value, array('DEVICE_ID' => $properties[$i]['DEVICE_ID']));
+						if($this->config['LOGS_ENABLED'] == 'on') debMes('Успешно - propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$value, 'easy_fkb');
+					} else {
+						if($this->config['LOGS_ENABLED'] == 'on') debMes('Ошибка изменения состояния. propertySetHandle->'.$properties[$i]["TITLE"].'->new_val='.$value, 'easy_fkb');
 						return;
 					}
 				}
@@ -589,9 +524,6 @@ class easy_fkb extends module {
 	
 	function usual(&$out) {
 		$this->admin($out);
-		
-		$screenBrightness = SQLSelectOne("SELECT `VALUE` FROM `easy_fkb` WHERE TITLE = 'screenBrightness' AND LINKED_OBJECT != '' AND LINKED_PROPERTY != ''");
-		$out['SET_SCREEN_BRIGH'] = $screenBrightness['VALUE'];
 	}
 	
 	function DeleteLinkedProperties() {
@@ -630,8 +562,7 @@ class easy_fkb extends module {
 	
 	function processCycle() {
 		setGlobal("cycle_{$this->name}", '1');
-		
-		$this->getConfig();
+
 		$this->getInfomation();
 	}
 
@@ -663,6 +594,7 @@ class easy_fkb extends module {
 		// Удаляем таблицы модуля из БД.
 		echo date('H:i:s') . ' Delete DB tables.<br>';
 		SQLExec('DROP TABLE IF EXISTS easy_fkb');
+		SQLExec('DROP TABLE IF EXISTS easy_fkb_device');
 
 		// Удаляем служебные свойства контроля состояния цикла у объекта ThisComputer.
 		echo date('H:i:s') . ' Delete cycles properties.<br>';
@@ -676,13 +608,21 @@ class easy_fkb extends module {
 	function dbInstall($data = '') {
       $data = <<<EOD
         easy_fkb: ID int(10) unsigned NOT NULL auto_increment
+        easy_fkb: DEVICE_ID int(10) NOT NULL DEFAULT '0'
         easy_fkb: TITLE varchar(100) NOT NULL DEFAULT ''
         easy_fkb: VALUE text
-        easy_fkb: READONLY varchar(10) NOT NULL DEFAULT ''
+        easy_fkb: READONLY int(2) NOT NULL DEFAULT '1'
         easy_fkb: LINKED_OBJECT varchar(100) NOT NULL DEFAULT ''
         easy_fkb: LINKED_PROPERTY varchar(100) NOT NULL DEFAULT ''
         easy_fkb: LINKED_METHOD varchar(100) NOT NULL DEFAULT ''
         easy_fkb: UPDATED varchar(100) NOT NULL DEFAULT ''
+		
+		easy_fkb_device: ID int(10) unsigned NOT NULL auto_increment
+        easy_fkb_device: TITLE varchar(100) NOT NULL DEFAULT ''
+        easy_fkb_device: IP varchar(100) NOT NULL DEFAULT ''
+        easy_fkb_device: STATUS int(10) NOT NULL DEFAULT '0'
+        easy_fkb_device: PASSWORD varchar(100) NOT NULL DEFAULT ''
+        easy_fkb_device: UPDATED varchar(100) NOT NULL DEFAULT ''
 EOD;
 		parent::dbInstall($data);
    }

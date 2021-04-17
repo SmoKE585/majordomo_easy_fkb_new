@@ -1,0 +1,84 @@
+<script>
+function loadScreensaver() {
+	$('#imgScreenTab').attr('src', '[#DEVICE_IP#]/?cmd=getScreenshot&password=[#DEVICE_PASS#]');
+	$('#loadScreenDIV').hide();
+	$('#imgScreenTab').show();
+}
+function loadCamshot() {
+	$('#imgCamShot').attr('src', '[#DEVICE_IP#]/?cmd=getCamshot&password=[#DEVICE_PASS#]');
+	$('#loadScreenDIVCam').hide();
+	$('#imgCamShot').show();
+}
+</script>
+<div class="row">
+	<div class="col-md-3" style="padding: 0;margin-bottom: 10px;">		
+		<img src="" id="imgScreenTab" style="width: 100%; display:none;">
+		
+		<div style="text-align: center;padding-top: 100px;padding-bottom: 100px;border: 1px solid #ddd;background-image: url(/templates/easy_fkb/img/waitScreen.jpg);background-size: cover;background-repeat: no-repeat;background-position: center center;" id="loadScreenDIV">
+			<button type="button" class="btn btn-info" onclick="loadScreensaver();"><i class="las la-arrow-alt-circle-down"></i> Загрузить скрин экрана</button>
+		</div>
+	</div>
+	<div class="col-md-3" style="padding: 0;margin-bottom: 10px;">
+		<img src="" id="imgCamShot" style="width: 100%; display:none;">
+		
+		<div style="text-align: center;padding-top: 100px;padding-bottom: 100px;border: 1px solid #ddd;background-image: url(/templates/easy_fkb/img/waitScreen.jpg);background-size: cover;background-repeat: no-repeat;background-position: center center;" id="loadScreenDIVCam">
+			<button type="button" class="btn btn-info" onclick="loadCamshot();"><i class="las la-camera-retro"></i> Загрузить камшот</button>
+		</div>
+	</div>
+	<div class="col-md-6" style="padding: 0;margin-bottom: 10px;">
+		<p style="padding: 0px 10px 10px 10px;">
+			Чтобы получить камшоты или скриншоты в своих сценах использутей следующие ссылки:<br>
+			- Для получения скриншота используйте ссылку:<br>
+			<code>[#DEVICE_IP#]/?cmd=getScreenshot&password=[#DEVICE_PASS#]</code><br>
+			- Для получения камшота используйте ссылку:<br>
+			<code>[#DEVICE_IP#]/?cmd=getCamshot&password=[#DEVICE_PASS#]</code><br>
+			
+			<div class="alert alert-warning">
+				Камшоты можно получать только если в настройках FKB включен пункт Motion Detect!
+			</div>
+		</p>
+	</div>
+</div>
+<div class="row">
+	<form action="?" method="post" enctype="multipart/form-data" name="frmEdit">
+		<div class="col-md-12" style="padding: 0;">		
+			<div class="table-responsive ">
+				<table class="table table-hover table-bordered">
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>Название</th>
+							<th>Объект</th>
+							<th>Свойство</th>
+							<th>Метод</th>
+						</tr>
+					</thead>
+					<tbody>
+						[#begin BASE_SKILLS#]
+						<tr>
+							<td>
+								[#if READONLY == 0#]<b>[#endif#][#TITLE#][#if READONLY == 0#]</b>[#endif#]
+								[#if READONLY == 1#]
+									<div style="color: red;font-size: 0.6rem">Доступно только для чтения</div>
+								[#endif#]
+							</td>
+							<td id="[#TITLE#]_value">
+								[#VALUE#]
+							</td>
+							<td><input type="text" style="width: 100%" name="linked_object[#ID#]" id="linked_object[#ID#]" value="[#LINKED_OBJECT#]"></td>
+							<td><input type="text" style="width: 100%" name="linked_property[#ID#]" id="linked_property[#ID#]" value="[#LINKED_PROPERTY#]"></td>
+							<td><input type="text" style="width: 100%" name="linked_method[#ID#]" id="linked_method[#ID#]" value="[#LINKED_METHOD#]"></td>
+							[#module name="linkedobject" object_field="linked_object<#BASE_SKILLS.ID#>" property_field="linked_property<#BASE_SKILLS.ID#>" method_field="linked_method<#BASE_SKILLS.ID#>" width="90%"#]
+						</tr>
+						[#end BASE_SKILLS#]
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<div class="col-md-12 text-center" style="padding: 0;">
+			<input type="hidden" name="view_mode" value="update_metrics">
+			<input type="hidden" name="id" value="[#ID#]">
+			<button type="submit" name="subm" value="Submit" class="btn btn-lg btn-success"><i class="las la-save"></i> Сохранить</button>
+		</div>
+	</form>
+</div>

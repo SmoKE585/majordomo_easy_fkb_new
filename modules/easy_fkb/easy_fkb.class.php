@@ -101,7 +101,7 @@ class easy_fkb extends module {
 		
 		if($responce['status'] == 'Error') {
 			return false;
-		} else if($responce['deviceName']) {
+		} else if($responce['deviceName'] || $responce['internalStorageFreeSpace']) {
 			if($reload == 0) {
 				$name = $responce['deviceManufacturer'] .' '. $responce['deviceName'];
 				
@@ -150,7 +150,7 @@ class easy_fkb extends module {
 		
 		if($responce['status'] == 'Error') {
 			return false;
-		} else if($responce['deviceName']) {
+		} else if($responce['deviceName'] || $responce['internalStorageFreeSpace']) {
 			$result = [];
 			ksort($responce);
 			$skillsID = 0;
